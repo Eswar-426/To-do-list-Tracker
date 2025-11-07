@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>FocusFlow — Sign Up</title>
+  <meta name="color-scheme" content="light dark"/>
+  <link rel="stylesheet" href="auth.css"/>
+</head>
+<body class="light">
+  <div class="auth glass" role="application" aria-label="Sign up">
+    <div class="left">
+      <h1 class="logo">Focus<span>Flow</span></h1>
+      <h3 style="margin:0">Create your account ✨</h3>
+      <p class="pitch">One account. All the gradient-powered focus you can handle.</p>
+      <div class="feature"><span>🧠</span><div><b>Rememberable</b><br><small>“Remember me” keeps you logged in locally (on Sign in).</small></div></div>
+      <div class="feature"><span>🛡️</span><div><b>Hashed</b><br><small>Passwords are hashed in your browser (demo only).</small></div></div>
+    </div>
+
+    <div class="right">
+      <div class="row" style="justify-content:space-between">
+        <div class="tabs" role="tablist">
+          <a class="tab" href="signin.html" aria-selected="false">Sign in</a>
+          <button class="tab" aria-selected="true">Create account</button>
+        </div>
+        <button id="theme-toggle" class="tab" title="Theme">🌙</button>
+      </div>
+
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="name">Full name</label>
+          <input id="name" class="input" type="text" placeholder="Eswar S" required/>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" class="input" type="email" placeholder="you@example.com" required/>
+        </div>
+        <div class="field rel">
+          <label for="password">Password</label>
+          <input id="password" class="input" type="password" placeholder="At least 8 chars with mix" minlength="8" required/>
+          <span class="showpass" role="button" aria-label="Show password" id="togglepass1">👁️</span>
+        </div>
+        <div class="meter" aria-hidden="true"><div id="meter"></div></div>
+        <div class="hint" id="strength">Strength: —</div>
+        <div class="field rel">
+          <label for="confirm">Confirm password</label>
+          <input id="confirm" class="input" type="password" placeholder="Re-enter password" required/>
+          <span class="showpass" role="button" aria-label="Show password" id="togglepass2">👁️</span>
+        </div>
+        <label class="row" style="gap:6px">
+          <input id="tos" type="checkbox" required/>
+          <span class="hint">I agree to the (mock) Terms</span>
+        </label>
+        <div id="msg" class="error" aria-live="polite"></div>
+        <div class="actions">
+          <button class="btn primary" type="submit">Create account</button>
+          <button class="btn" type="button" id="demo">Fill demo</button>
+        </div>
+        <div class="footer">Already have an account? <a href="signin.html">Sign in</a></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        // Already authed? Go to app (prevents loop)
+        if (FocusAuth.Session.isAuthed()) {
+          window.location.replace('index.html');
+          return;
+        }
+
+        // Strength meter
+        function score(pw){
+          let s = 0;
+          if (pw.length >= 8) s++;
+          if (/[A-Z]/.test(pw)) s++;
+          if (/[a-z]/.test(pw)) s++;
+          if (/[0-9]/.test(pw)) s++;
+          if (/[^A-Za-z0-9]/.test(pw)) s++;
+          return s;
+        }
+        const meter = document.getElementById('meter');
+        const strength = document.getElementById('strength');
+        const pass = document.getElementById('password');
+        function updateMeter(){
+          const s = score(pass.value);
+          meter.style.width = (s/5*100) + '%';
+          meter.className = '';
+          meter.classList.add(s<=2 ? 'weak' : s===3 ? 'okc' : s===4 ? 'good' : 'great');
+          const labels = ['—','Very weak','Weak','Okay','Good','Great'];
+          strength.textContent = 'Strength: ' + labels[s];
+        }
+        pass.addEventListener('input', updateMeter);
+
+        // Show/hide
+        document.getElementById('togglepass1').onclick = ()=>{ pass.type = pass.type === 'password' ? 'text' : 'password'; };
+        document.getElementById('togglepass2').onclick = ()=>{
+          const c = document.getElementById('confirm');
+          c.type = c.type === 'password' ? 'text' : 'password';
+        };
+
+        // Demo fill
+        document.getElementById('demo').onclick = ()=>{
+          document.getElementById('name').value = 'Eswar';
+          document.getElementById('email').value = 'eswar@example.com';
+          document.getElementById('password').value = 'Eswar@1234';
+          document.getElementById('confirm').value = 'Eswar@1234';
+          updateMeter();
+        };
+
+        // Submit
+        document.getElementById('form').addEventListener('submit', async (e)=>{
+          e.preventDefault();
+          const name = document.getElementById('name').value.trim();
+          const email= document.getElementById('email').value.trim().toLowerCase();
+          const pw1  = document.getElementById('password').value;
+          const pw2  = document.getElementById('confirm').value;
+          const tos  = document.getElementById('tos').checked;
+          const msgEl= document.getElementById('msg');
+
+          msgEl.className = 'error';
+          msgEl.textContent = '';
+          if (name.length < 2) { msgEl.textContent = 'Please enter your full name.'; return; }
+          if (!/^\S+@\S+\.\S+$/.test(email)) { msgEl.textContent = 'Enter a valid email.'; return; }
+          if (FocusAuth.Users.get(email)) { msgEl.textContent = 'An account with this email already exists.'; return; }
+          if (pw1.length < 8) { msgEl.textContent = 'Password must be at least 8 characters.'; return; }
+          if (pw1 !== pw2) { msgEl.textContent = 'Passwords do not match.'; return; }
+          if (!tos) { msgEl.textContent = 'You must accept the Terms.'; return; }
+
+          let hpw;
+          try { hpw = await FocusAuth.sha256(pw1); }
+          catch (err) { console.error(err); msgEl.textContent = 'Unexpected error hashing password.'; return; }
+
+          FocusAuth.Users.add({ name, email, hpw, createdAt: new Date().toISOString() });
+          localStorage.setItem(FocusAuth.LAST_EMAIL_KEY, email);
+          msgEl.className = 'success';
+          msgEl.textContent = 'Account created! Redirecting to sign in…';
+          setTimeout(()=> window.location.replace('signin.html'), 500);
+        });
+      } catch (e) {
+        console.error('Signup init error:', e);
+        const m = document.getElementById('msg');
+        if (m) m.textContent = 'Something went wrong initializing the page.';
+      }
+    });
+  </script>
+</body>
+</html>
